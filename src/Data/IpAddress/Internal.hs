@@ -32,36 +32,25 @@ instance Enum IPAddress where
   fromEnum (IPAddress w) = fromEnum w
 
 instance Integral IPAddress where
-  quotRem (IPAddress n) (IPAddress d) = (IPAddress $ fromIntegral q, IPAddress $ fromIntegral
-                                                                                   r)
+  quotRem (IPAddress n) (IPAddress d) = (IPAddress $ fromIntegral q, IPAddress $ fromIntegral r)
     where
       (q, r) = quotRem (toInteger n) (toInteger d)
   toInteger (IPAddress w) = toInteger w
 
 instance Show IPAddress where
-  show ip = s3 ++ "." ++ s2 ++ "." ++ s1 ++ "." ++ s0
+  show ip = join $ intersperse "." asStrings
     where
-      IPV4DotFields i3 i2 i1 i0 = ipAddressToIPV4DotFields ip
-      s3 = show i3
-      s2 = show i2
-      s1 = show i1
-      s0 = show i0
+      IPV4DotFields repr = ipAddressToIPV4DotFields ip
+      asStrings = fmap show repr
 
--- IpV4 is simple enough, 4 integer as separate fields is a nice data
--- representation and easy to debug
-data IPV4DotFields = IPV4DotFields Integer Integer Integer Integer
+data IPV4DotFields = IPV4DotFields [Integer]
   deriving (Eq, Ord, Show)
 
 parseIPV4DotFields :: Parser IPV4DotFields
 parseIPV4DotFields = do
-  i3 <- decimal
-  char '.'
-  i2 <- decimal
-  char '.'
-  i1 <- decimal
-  char '.'
+  first3 <- count 3 (decimal <* char '.')
   i0 <- decimal
-  return $ IPV4DotFields i3 i2 i1 i0
+  return $ IPV4DotFields (first3 ++ [i0])
 
 parseIPAddress :: Parser IPAddress
 parseIPAddress = do
@@ -70,9 +59,9 @@ parseIPAddress = do
   return ipAddy
 
 iPV4DotFieldsToIpAddress :: IPV4DotFields -> IPAddress
-iPV4DotFieldsToIpAddress (IPV4DotFields i3 i2 i1 i0) = IPAddress word
+iPV4DotFieldsToIpAddress (IPV4DotFields f) = IPAddress $ fromIntegral fAsInteger
   where
-    word = fromIntegral $ (i3 * 256 ^ 3) + (i2 * 256 ^ 2) + (i1 * 256) + i0
+    fAsInteger = foldr (\l acc -> l + 256 * acc) 0 (reverse f)
 
 ipV6FullSegments :: Int
 ipV6FullSegments = 8
@@ -211,7 +200,7 @@ ipv6NormedToIPAddress6 (IPV6Normed str) = IPAddress6 quotient remainder
   where
     asSegs = split ':' str
     zippedWithExp = zip (reverse asSegs) twoRaised16Exp
-    asInteger = foldr (\(s, exp) acc -> hexToDex s * exp + acc) 0 zippedWithExp
+    asInteger = foldr (\(s, exp) acc -> hexToDec s * exp + acc) 0 zippedWithExp
     (q, r) = quotRem asInteger word64Max
     quotient = fromIntegral q
     remainder = fromIntegral r
@@ -219,21 +208,20 @@ ipv6NormedToIPAddress6 (IPV6Normed str) = IPAddress6 quotient remainder
 word64Max :: Integer
 word64Max = toInteger (maxBound :: Word64)
 
-hexToDex :: String -> Integer
-hexToDex s = toInteger $ go $ reverse s
+hexToDec :: String -> Integer
+hexToDec s = toInteger asInt
   where
-    go [] = 0
-    go (x:xs) = fromMaybe 0 (M.lookup (toLower x) hexCharToValue) + 16 * go xs
+    asInt = foldr
+              (\c acc ->
+                 fromMaybe 0 (M.lookup (toLower c) hexCharToValue) + 16 * acc)
+              0
+              (reverse s)
 
 ipAddressToIPV4DotFields :: IPAddress -> IPV4DotFields
-ipAddressToIPV4DotFields (IPAddress word) = IPV4DotFields r4 r3 r2 r1
+ipAddressToIPV4DotFields (IPAddress word) = IPV4DotFields repr
   where
     asInteger = toInteger word
     repr = integralToBaseM asInteger 0 [0 .. 255]
-    r4 = repr !! 0
-    r3 = repr !! 1
-    r2 = repr !! 2
-    r1 = repr !! 3
 
 iPAddress6ToIPV6Normed :: IPAddress6 -> IPV6Normed
 iPAddress6ToIPV6Normed ip = IPV6Normed s
@@ -257,13 +245,16 @@ integerToChoppedUp i = go i []
 -- Turns an integral into an list representation in another base
 -- :: Integral -> zero -> [digits] -> [representation]
 integralToBaseM :: Integral a => a -> b -> [b] -> [b]
-integralToBaseM i zero reps = go i []
+integralToBaseM i zero digits = if base == 0
+                                  then []
+                                  else go i []
   where
+    base = fromIntegral $ length digits
     go 0 [] = [zero]
     go 0 acc = acc
     go curr acc =
-      let (q, r) = quotRem curr (fromIntegral $ length reps)
-      in go q ((reps !! fromIntegral r) : acc)
+      let (q, r) = quotRem curr base
+      in go q ((digits !! fromIntegral r) : acc)
 
 integerToHexString :: Integer -> String
 integerToHexString i = integralToBaseM i '0' validHexCharsLowerOnly
