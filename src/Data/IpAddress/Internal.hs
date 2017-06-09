@@ -13,7 +13,7 @@ import           Data.Maybe          (fromMaybe)
 import           Data.Word
 import           Text.Trifecta
 
-data IPAddress = IPAddress Word32
+newtype IPAddress = IPAddress Word32
   deriving (Eq, Ord)
 
 instance Num IPAddress where
@@ -43,7 +43,7 @@ instance Show IPAddress where
       IPV4DotFields repr = ipAddressToIPV4DotFields ip
       asStrings = fmap show repr
 
-data IPV4DotFields = IPV4DotFields [Integer]
+newtype IPV4DotFields = IPV4DotFields [Integer]
   deriving (Eq, Ord, Show)
 
 parseIPV4DotFields :: Parser IPV4DotFields
