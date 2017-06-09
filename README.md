@@ -2,14 +2,14 @@
 
 Done as an exercise for practising Haskell.
 
-Parse IPv4, IPv6 and converts from v4 to v6.
+* Parses IPv4 and IPv6
+* Converts from IPv4 to IPv6
 
-## Covered
+### Areas explored
 
 - Parsing stuff w/ Trifecta
 - Various datatypes and conversions btwn them
 - Stack for managing the build
 - HSpec
 - Internals hiding
-
-
+- Pleasing Travis CI
