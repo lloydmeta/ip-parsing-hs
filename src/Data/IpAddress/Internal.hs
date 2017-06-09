@@ -3,6 +3,7 @@ module Data.IpAddress.Internal where
 import           Control.Applicative
 import           Control.Monad       (join)
 import           Data.Char           (toLower)
+import           Data.Foldable       (foldl')
 import           Data.List           (intersperse, isInfixOf, isPrefixOf,
                                       isSuffixOf)
 import qualified Data.List           as L
@@ -61,7 +62,7 @@ parseIPAddress = do
 iPV4DotFieldsToIpAddress :: IPV4DotFields -> IPAddress
 iPV4DotFieldsToIpAddress (IPV4DotFields f) = IPAddress $ fromIntegral fAsInteger
   where
-    fAsInteger = foldr (\l acc -> l + 256 * acc) 0 (reverse f)
+    fAsInteger = baseNToDec 256 id f
 
 ipV6FullSegments :: Int
 ipV6FullSegments = 8
@@ -211,17 +212,13 @@ word64Max = toInteger (maxBound :: Word64)
 hexToDec :: String -> Integer
 hexToDec s = toInteger asInt
   where
-    asInt = foldr
-              (\c acc ->
-                 fromMaybe 0 (M.lookup (toLower c) hexCharToValue) + 16 * acc)
-              0
-              (reverse s)
+    asInt = baseNToDec 16 (\c -> fromMaybe 0 (M.lookup (toLower c) hexCharToValue)) s
 
 ipAddressToIPV4DotFields :: IPAddress -> IPV4DotFields
 ipAddressToIPV4DotFields (IPAddress word) = IPV4DotFields repr
   where
     asInteger = toInteger word
-    repr = integralToBaseM asInteger 0 [0 .. 255]
+    repr = decToBaseN asInteger 0 [0 .. 255]
 
 iPAddress6ToIPV6Normed :: IPAddress6 -> IPV6Normed
 iPAddress6ToIPV6Normed ip = IPV6Normed s
@@ -244,8 +241,8 @@ integerToChoppedUp i = go i []
 
 -- Turns an integral into an list representation in another base
 -- :: Integral -> zero -> [digits] -> [representation]
-integralToBaseM :: Integral a => a -> b -> [b] -> [b]
-integralToBaseM i zero digits = if base == 0
+decToBaseN :: Integral a => a -> b -> [b] -> [b]
+decToBaseN i zero digits = if base == 0
                                   then []
                                   else go i []
   where
@@ -256,8 +253,13 @@ integralToBaseM i zero digits = if base == 0
       let (q, r) = quotRem curr base
       in go q ((digits !! fromIntegral r) : acc)
 
+-- Given a base, a conversion from a to Num a, and a list of a's representing a number
+-- returns the base 10 representation of that number
+baseNToDec :: Num i => i -> (a -> i) -> [a] -> i
+baseNToDec base toInt = foldl' (\acc n -> base * acc + toInt n ) 0
+
 integerToHexString :: Integer -> String
-integerToHexString i = integralToBaseM i '0' validHexCharsLowerOnly
+integerToHexString i = decToBaseN i '0' validHexCharsLowerOnly
 
 ipV4ToIpV6Normed :: IPAddress -> IPV6Normed
 ipV4ToIpV6Normed (IPAddress word) = normed
