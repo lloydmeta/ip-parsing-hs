@@ -47,6 +47,8 @@ instance Show IPAddress where
       s1 = show i1
       s0 = show i0
 
+-- IpV4 is simple enough, 4 integer as separate fields is a nice data
+-- representation and easy to debug
 data IPV4DotFields = IPV4DotFields Integer Integer Integer Integer
   deriving (Eq, Ord, Show)
 
@@ -227,10 +229,11 @@ ipAddressToIPV4DotFields :: IPAddress -> IPV4DotFields
 ipAddressToIPV4DotFields (IPAddress word) = IPV4DotFields r4 r3 r2 r1
   where
     asInteger = toInteger word
-    (f1, r1) = quotRem asInteger 256
-    (f2, r2) = quotRem f1 256
-    (f3, r3) = quotRem f2 256
-    (_, r4) = quotRem f3 256
+    repr = integralToBaseM asInteger 0 [0 .. 255]
+    r4 = repr !! 0
+    r3 = repr !! 1
+    r2 = repr !! 2
+    r1 = repr !! 3
 
 iPAddress6ToIPV6Normed :: IPAddress6 -> IPV6Normed
 iPAddress6ToIPV6Normed ip = IPV6Normed s
@@ -251,14 +254,19 @@ integerToChoppedUp i = go i []
       let (q, r) = quotRem curr (2 ^ 16)
       in go q (r : acc)
 
-integerToHexString :: Integer -> String
-integerToHexString i = go i ""
+-- Turns an integral into an list representation in another base
+-- :: Integral -> zero -> [digits] -> [representation]
+integralToBaseM :: Integral a => a -> b -> [b] -> [b]
+integralToBaseM i zero reps = go i []
   where
-    go 0 [] = "0"
+    go 0 [] = [zero]
     go 0 acc = acc
     go curr acc =
-      let (q, r) = quotRem curr (fromIntegral $ length validHexCharsLowerOnly)
-      in go q ((validHexCharsLowerOnly !! fromIntegral r) : acc)
+      let (q, r) = quotRem curr (fromIntegral $ length reps)
+      in go q ((reps !! fromIntegral r) : acc)
+
+integerToHexString :: Integer -> String
+integerToHexString i = integralToBaseM i '0' validHexCharsLowerOnly
 
 ipV4ToIpV6Normed :: IPAddress -> IPV6Normed
 ipV4ToIpV6Normed (IPAddress word) = normed
